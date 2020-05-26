@@ -216,6 +216,9 @@ namespace HarmonyLib
         /// <summary>The patch method</summary>
         public MethodInfo patch;
 
+        /// <summary>
+        /// The method that applies the patch.
+        /// </summary>
         public MethodInfo PatchMethod
         {
             get => patch;
