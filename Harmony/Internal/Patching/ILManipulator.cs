@@ -17,302 +17,302 @@ using SRE = System.Reflection.Emit;
 
 namespace HarmonyLib.Internal.Patching
 {
-    /// <summary>
-    ///     High-level IL code manipulator for MonoMod that allows to manipulate a method as a stream of CodeInstructions.
-    /// </summary>
-    internal class ILManipulator
-    {
-        private static readonly Dictionary<short, SRE.OpCode> SREOpCodes = new Dictionary<short, SRE.OpCode>();
-        private static readonly Dictionary<short, OpCode> CecilOpCodes = new Dictionary<short, OpCode>();
+	/// <summary>
+	///     High-level IL code manipulator for MonoMod that allows to manipulate a method as a stream of CodeInstructions.
+	/// </summary>
+	internal class ILManipulator
+	{
+		private static readonly Dictionary<short, SRE.OpCode> SREOpCodes = new Dictionary<short, SRE.OpCode>();
+		private static readonly Dictionary<short, OpCode> CecilOpCodes = new Dictionary<short, OpCode>();
 
-        private readonly IEnumerable<CodeInstruction> codeInstructions;
-        private readonly List<MethodInfo> transpilers = new List<MethodInfo>();
+		private readonly IEnumerable<CodeInstruction> codeInstructions;
+		private readonly List<MethodInfo> transpilers = new List<MethodInfo>();
 
 
-        static ILManipulator()
-        {
-            foreach (var field in typeof(SRE.OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
-            {
-                var sreOpCode = (SRE.OpCode) field.GetValue(null);
-                SREOpCodes[sreOpCode.Value] = sreOpCode;
-            }
+		static ILManipulator()
+		{
+			foreach (var field in typeof(SRE.OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
+			{
+				var sreOpCode = (SRE.OpCode)field.GetValue(null);
+				SREOpCodes[sreOpCode.Value] = sreOpCode;
+			}
 
-            foreach (var field in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
-            {
-                var cecilOpCode = (OpCode) field.GetValue(null);
-                CecilOpCodes[cecilOpCode.Value] = cecilOpCode;
-            }
-        }
+			foreach (var field in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
+			{
+				var cecilOpCode = (OpCode)field.GetValue(null);
+				CecilOpCodes[cecilOpCode.Value] = cecilOpCode;
+			}
+		}
 
-        /// <summary>
-        ///     Initialize IL transpiler
-        /// </summary>
-        /// <param name="body">Body of the method to transpile</param>
-        public ILManipulator(MethodBody body)
-        {
-            codeInstructions = ReadBody(body);
-        }
+		/// <summary>
+		///     Initialize IL transpiler
+		/// </summary>
+		/// <param name="body">Body of the method to transpile</param>
+		public ILManipulator(MethodBody body)
+		{
+			codeInstructions = ReadBody(body);
+		}
 
-        private int GetStaticIndex(ParameterInfo pInfo)
-        {
-            var isStatic = false;
-            if (pInfo.Member is MethodInfo mi)
-                isStatic = mi.IsStatic;
-            else if (pInfo.Member is ConstructorInfo ci)
-                isStatic = ci.IsStatic;
-            return isStatic ? pInfo.Position : pInfo.Position + 1;
-        }
+		private int GetStaticIndex(ParameterInfo pInfo)
+		{
+			var isStatic = false;
+			if (pInfo.Member is MethodInfo mi)
+				isStatic = mi.IsStatic;
+			else if (pInfo.Member is ConstructorInfo ci)
+				isStatic = ci.IsStatic;
+			return isStatic ? pInfo.Position : pInfo.Position + 1;
+		}
 
-        private IEnumerable<CodeInstruction> ReadBody(MethodBody body)
-        {
-            var instructions = new List<CodeInstruction>(body.Instructions.Count);
+		private IEnumerable<CodeInstruction> ReadBody(MethodBody body)
+		{
+			var instructions = new List<CodeInstruction>(body.Instructions.Count);
 
-            CodeInstruction ReadInstruction(Instruction ins)
-            {
-                var cIns = new CodeInstruction(SREOpCodes[ins.OpCode.Value]);
+			CodeInstruction ReadInstruction(Instruction ins)
+			{
+				var cIns = new CodeInstruction(SREOpCodes[ins.OpCode.Value]);
 
-                switch (ins.OpCode.OperandType)
-                {
-                    case OperandType.InlineField:
-                    case OperandType.InlineMethod:
-                    case OperandType.InlineType:
-                    case OperandType.InlineTok:
-                        cIns.ilOperand = ((MemberReference) ins.Operand).ResolveReflection();
-                        break;
-                    case OperandType.InlineVar:
-                    case OperandType.ShortInlineVar:
-                        cIns.ilOperand = (VariableDefinition) ins.Operand;
-                        break;
-                    case OperandType.InlineArg:
-                    case OperandType.ShortInlineArg:
-                        cIns.ilOperand = ((ParameterDefinition) ins.Operand).Index;
-                        break;
-                    case OperandType.InlineBrTarget:
-                    case OperandType.ShortInlineBrTarget:
-                        cIns.ilOperand = body.Instructions.IndexOf(((ILLabel) ins.Operand).Target);
-                        break;
-                    case OperandType.InlineSwitch:
-                        cIns.ilOperand = ((ILLabel[]) ins.Operand)
-                                         .Select(i => body.Instructions.IndexOf(i.Target)).ToArray();
-                        break;
-                    default:
-                        cIns.ilOperand = ins.Operand;
-                        break;
-                }
+				switch (ins.OpCode.OperandType)
+				{
+					case OperandType.InlineField:
+					case OperandType.InlineMethod:
+					case OperandType.InlineType:
+					case OperandType.InlineTok:
+						cIns.ilOperand = ((MemberReference)ins.Operand).ResolveReflection();
+						break;
+					case OperandType.InlineVar:
+					case OperandType.ShortInlineVar:
+						cIns.ilOperand = (VariableDefinition)ins.Operand;
+						break;
+					case OperandType.InlineArg:
+					case OperandType.ShortInlineArg:
+						cIns.ilOperand = ((ParameterDefinition)ins.Operand).Index;
+						break;
+					case OperandType.InlineBrTarget:
+					case OperandType.ShortInlineBrTarget:
+						cIns.ilOperand = body.Instructions.IndexOf(((ILLabel)ins.Operand).Target);
+						break;
+					case OperandType.InlineSwitch:
+						cIns.ilOperand = ((ILLabel[])ins.Operand)
+										 .Select(i => body.Instructions.IndexOf(i.Target)).ToArray();
+						break;
+					default:
+						cIns.ilOperand = ins.Operand;
+						break;
+				}
 
-                return cIns;
-            }
+				return cIns;
+			}
 
-            // Pass 1: Convert IL to base abstract CodeInstructions
-            instructions.AddRange(body.Instructions.Select(ReadInstruction));
+			// Pass 1: Convert IL to base abstract CodeInstructions
+			instructions.AddRange(body.Instructions.Select(ReadInstruction));
 
-            //Pass 2: Resolve CodeInstructions for branch parameters
-            foreach (var cIns in instructions)
-                switch (cIns.opcode.OperandType)
-                {
-                    case SRE.OperandType.ShortInlineBrTarget:
-                    case SRE.OperandType.InlineBrTarget:
-                        cIns.ilOperand = instructions[(int) cIns.ilOperand];
-                        break;
-                    case SRE.OperandType.InlineSwitch:
-                        cIns.ilOperand = ((int[]) cIns.ilOperand).Select(i => instructions[i]).ToArray();
-                        break;
-                }
+			//Pass 2: Resolve CodeInstructions for branch parameters
+			foreach (var cIns in instructions)
+				switch (cIns.opcode.OperandType)
+				{
+					case SRE.OperandType.ShortInlineBrTarget:
+					case SRE.OperandType.InlineBrTarget:
+						cIns.ilOperand = instructions[(int)cIns.ilOperand];
+						break;
+					case SRE.OperandType.InlineSwitch:
+						cIns.ilOperand = ((int[])cIns.ilOperand).Select(i => instructions[i]).ToArray();
+						break;
+				}
 
-            // Pass 3: Attach exception blocks to each code instruction
-            foreach (var exception in body.ExceptionHandlers)
-            {
-                var tryStart = instructions[body.Instructions.IndexOf(exception.TryStart)];
-                var tryEnd = instructions[body.Instructions.IndexOf(exception.TryEnd)];
-                var handlerStart = instructions[body.Instructions.IndexOf(exception.HandlerStart)];
-                var handlerEnd = instructions[body.Instructions.IndexOf(exception.HandlerEnd.Previous)];
+			// Pass 3: Attach exception blocks to each code instruction
+			foreach (var exception in body.ExceptionHandlers)
+			{
+				var tryStart = instructions[body.Instructions.IndexOf(exception.TryStart)];
+				var tryEnd = instructions[body.Instructions.IndexOf(exception.TryEnd)];
+				var handlerStart = instructions[body.Instructions.IndexOf(exception.HandlerStart)];
+				var handlerEnd = instructions[body.Instructions.IndexOf(exception.HandlerEnd.Previous)];
 
-                tryStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginExceptionBlock));
-                handlerEnd.blocks.Add(new ExceptionBlock(ExceptionBlockType.EndExceptionBlock));
+				tryStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginExceptionBlock));
+				handlerEnd.blocks.Add(new ExceptionBlock(ExceptionBlockType.EndExceptionBlock));
 
-                switch (exception.HandlerType)
-                {
-                    case ExceptionHandlerType.Catch:
-                        handlerStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginCatchBlock,
-                                                                   exception.CatchType.ResolveReflection()));
-                        break;
-                    case ExceptionHandlerType.Filter:
-                        var filterStart = instructions[body.Instructions.IndexOf(exception.FilterStart)];
-                        filterStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginExceptFilterBlock));
-                        break;
-                    case ExceptionHandlerType.Finally:
-                        handlerStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginFinallyBlock));
-                        break;
-                    case ExceptionHandlerType.Fault:
-                        handlerStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginFaultBlock));
-                        break;
-                }
-            }
+				switch (exception.HandlerType)
+				{
+					case ExceptionHandlerType.Catch:
+						handlerStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginCatchBlock,
+																   exception.CatchType.ResolveReflection()));
+						break;
+					case ExceptionHandlerType.Filter:
+						var filterStart = instructions[body.Instructions.IndexOf(exception.FilterStart)];
+						filterStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginExceptFilterBlock));
+						break;
+					case ExceptionHandlerType.Finally:
+						handlerStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginFinallyBlock));
+						break;
+					case ExceptionHandlerType.Fault:
+						handlerStart.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginFaultBlock));
+						break;
+				}
+			}
 
-            return instructions;
-        }
+			return instructions;
+		}
 
-        /// <summary>
-        ///     Adds a transpiler method that edits the IL of the given method
-        /// </summary>
-        /// <param name="transpiler">Transpiler method</param>
-        /// <exception cref="NotImplementedException">Currently not implemented</exception>
-        public void AddTranspiler(MethodInfo transpiler)
-        {
-            transpilers.Add(transpiler);
-        }
+		/// <summary>
+		///     Adds a transpiler method that edits the IL of the given method
+		/// </summary>
+		/// <param name="transpiler">Transpiler method</param>
+		/// <exception cref="NotImplementedException">Currently not implemented</exception>
+		public void AddTranspiler(MethodInfo transpiler)
+		{
+			transpilers.Add(transpiler);
+		}
 
-        private object[] GetTranpilerArguments(SRE.ILGenerator il, MethodInfo transpiler,
-                                               IEnumerable<CodeInstruction> instructions, MethodBase orignal = null)
-        {
-            var result = new List<object>();
+		private object[] GetTranpilerArguments(SRE.ILGenerator il, MethodInfo transpiler,
+											   IEnumerable<CodeInstruction> instructions, MethodBase orignal = null)
+		{
+			var result = new List<object>();
 
-            foreach (var type in transpiler.GetParameters().Select(p => p.ParameterType))
-                if (type.IsAssignableFrom(typeof(SRE.ILGenerator)))
-                    result.Add(il);
-                else if (type.IsAssignableFrom(typeof(MethodBase)) && orignal != null)
-                    result.Add(orignal);
-                else if (type.IsAssignableFrom(typeof(IEnumerable<CodeInstruction>)))
-                    result.Add(instructions);
+			foreach (var type in transpiler.GetParameters().Select(p => p.ParameterType))
+				if (type.IsAssignableFrom(typeof(SRE.ILGenerator)))
+					result.Add(il);
+				else if (type.IsAssignableFrom(typeof(MethodBase)) && orignal != null)
+					result.Add(orignal);
+				else if (type.IsAssignableFrom(typeof(IEnumerable<CodeInstruction>)))
+					result.Add(instructions);
 
-            return result.ToArray();
-        }
+			return result.ToArray();
+		}
 
-        private List<CodeInstruction> ApplyTranspilers(SRE.ILGenerator il, MethodBase original = null)
-        {
-            var tempInstructions = codeInstructions;
+		private List<CodeInstruction> ApplyTranspilers(SRE.ILGenerator il, MethodBase original = null)
+		{
+			var tempInstructions = codeInstructions;
 
-            foreach (var transpiler in transpilers)
-            {
-                var args = GetTranpilerArguments(il, transpiler, tempInstructions, original);
+			foreach (var transpiler in transpilers)
+			{
+				var args = GetTranpilerArguments(il, transpiler, tempInstructions, original);
 
-                Logger.Log(Logger.LogChannel.Info, () => $"Running transpiler {transpiler.GetID()}");
-                tempInstructions = transpiler.Invoke(null, args) as IEnumerable<CodeInstruction>;
-            }
+				Logger.Log(Logger.LogChannel.Info, () => $"Running transpiler {transpiler.GetID()}");
+				tempInstructions = transpiler.Invoke(null, args) as IEnumerable<CodeInstruction>;
+			}
 
-            return tempInstructions.ToList();
-        }
+			return tempInstructions.ToList();
+		}
 
-        public List<CodeInstruction> GetInstructions(SRE.ILGenerator il)
-        {
-            Prepare(vDef => il.DeclareLocal(vDef.VariableType.ResolveReflection()), il.DefineLabel);
-            return codeInstructions.ToList();
-        }
+		public List<CodeInstruction> GetInstructions(SRE.ILGenerator il)
+		{
+			Prepare(vDef => il.DeclareLocal(vDef.VariableType.ResolveReflection()), il.DefineLabel);
+			return codeInstructions.ToList();
+		}
 
-        private void Prepare(Func<VariableDefinition, SRE.LocalBuilder> getLocal, Func<SRE.Label> defineLabel)
-        {
-            foreach (var codeInstruction in codeInstructions)
-            {
-                // Set operand to the same as the IL operand (in most cases they are the same)
-                codeInstruction.operand = codeInstruction.ilOperand;
+		private void Prepare(Func<VariableDefinition, SRE.LocalBuilder> getLocal, Func<SRE.Label> defineLabel)
+		{
+			foreach (var codeInstruction in codeInstructions)
+			{
+				// Set operand to the same as the IL operand (in most cases they are the same)
+				codeInstruction.operand = codeInstruction.ilOperand;
 
-                switch (codeInstruction.opcode.OperandType)
-                {
-                    case SRE.OperandType.InlineVar:
-                    case SRE.OperandType.ShortInlineVar:
-                    {
-                        if (codeInstruction.ilOperand is VariableDefinition varDef)
-                            codeInstruction.operand = getLocal(varDef);
-                    }
-                        break;
-                    case SRE.OperandType.InlineSwitch when codeInstruction.ilOperand is CodeInstruction[] targets:
-                    {
-                        var labels = new List<SRE.Label>();
-                        foreach (var target in targets)
-                        {
-                            var label = defineLabel();
-                            target.labels.Add(label);
-                            labels.Add(label);
-                        }
+				switch (codeInstruction.opcode.OperandType)
+				{
+					case SRE.OperandType.InlineVar:
+					case SRE.OperandType.ShortInlineVar:
+						{
+							if (codeInstruction.ilOperand is VariableDefinition varDef)
+								codeInstruction.operand = getLocal(varDef);
+						}
+						break;
+					case SRE.OperandType.InlineSwitch when codeInstruction.ilOperand is CodeInstruction[] targets:
+						{
+							var labels = new List<SRE.Label>();
+							foreach (var target in targets)
+							{
+								var label = defineLabel();
+								target.labels.Add(label);
+								labels.Add(label);
+							}
 
-                        codeInstruction.operand = labels.ToArray();
-                    }
-                        break;
-                    case SRE.OperandType.ShortInlineBrTarget:
-                    case SRE.OperandType.InlineBrTarget:
-                    {
-                        if (codeInstruction.operand is CodeInstruction target)
-                        {
-                            var label = defineLabel();
-                            target.labels.Add(label);
-                            codeInstruction.operand = label;
-                        }
-                    }
-                        break;
-                }
-            }
-        }
+							codeInstruction.operand = labels.ToArray();
+						}
+						break;
+					case SRE.OperandType.ShortInlineBrTarget:
+					case SRE.OperandType.InlineBrTarget:
+						{
+							if (codeInstruction.operand is CodeInstruction target)
+							{
+								var label = defineLabel();
+								target.labels.Add(label);
+								codeInstruction.operand = label;
+							}
+						}
+						break;
+				}
+			}
+		}
 
-        /// <summary>
-        ///     Processes and writes IL to the provided method body.
-        ///     Note that this cleans the existing method body (removes insturctions and exception handlers).
-        /// </summary>
-        /// <param name="body">Method body to write to.</param>
-        /// <param name="original">Original method that transpiler can optionally call into</param>
-        /// <exception cref="NotSupportedException">
-        ///     One of IL opcodes contains a CallSide (e.g. calli), which is currently not
-        ///     fully supported.
-        /// </exception>
-        /// <exception cref="ArgumentNullException">One of IL opcodes with an operand contains a null operand.</exception>
-        public void WriteTo(MethodBody body, MethodBase original = null)
-        {
-            // Clean up the body of the target method
-            body.Instructions.Clear();
-            body.ExceptionHandlers.Clear();
+		/// <summary>
+		///     Processes and writes IL to the provided method body.
+		///     Note that this cleans the existing method body (removes insturctions and exception handlers).
+		/// </summary>
+		/// <param name="body">Method body to write to.</param>
+		/// <param name="original">Original method that transpiler can optionally call into</param>
+		/// <exception cref="NotSupportedException">
+		///     One of IL opcodes contains a CallSide (e.g. calli), which is currently not
+		///     fully supported.
+		/// </exception>
+		/// <exception cref="ArgumentNullException">One of IL opcodes with an operand contains a null operand.</exception>
+		public void WriteTo(MethodBody body, MethodBase original = null)
+		{
+			// Clean up the body of the target method
+			body.Instructions.Clear();
+			body.ExceptionHandlers.Clear();
 
-            var il = new CecilILGenerator(body.GetILProcessor());
-            var cil = il.GetProxy();
+			var il = new CecilILGenerator(body.GetILProcessor());
+			var cil = il.GetProxy();
 
-            // Define an "empty" label
-            // In Harmony, the first label can point to the end of the method
-            // Apparently, some transpilers naively call new Label() to define a label and thus end up
-            // using the first label without knowing it
-            // By defining the first label we'll ensure label count is correct
-            il.DefineLabel();
+			// Define an "empty" label
+			// In Harmony, the first label can point to the end of the method
+			// Apparently, some transpilers naively call new Label() to define a label and thus end up
+			// using the first label without knowing it
+			// By defining the first label we'll ensure label count is correct
+			il.DefineLabel();
 
-            // Step 1: Prepare labels for instructions
-            Prepare(vDef => il.GetLocal(vDef), il.DefineLabel);
+			// Step 1: Prepare labels for instructions
+			Prepare(vDef => il.GetLocal(vDef), il.DefineLabel);
 
-            // Step 2: Run the code instruction through transpilers
-            var newInstructions = ApplyTranspilers(cil, original);
+			// Step 2: Run the code instruction through transpilers
+			var newInstructions = ApplyTranspilers(cil, original);
 
-            // We don't remove trailing `ret`s because we need to do so only if prefixes/postfixes are present
+			// We don't remove trailing `ret`s because we need to do so only if prefixes/postfixes are present
 
-            // Step 3: Emit code
-            foreach (var ins in newInstructions)
-            {
-                ins.labels.ForEach(l => il.MarkLabel(l));
-                ins.blocks.ForEach(b => il.MarkBlockBefore(b));
+			// Step 3: Emit code
+			foreach (var ins in newInstructions)
+			{
+				ins.labels.ForEach(l => il.MarkLabel(l));
+				ins.blocks.ForEach(b => il.MarkBlockBefore(b));
 
-                // We don't replace `ret`s yet because we might not need to
-                // We do that only if we add prefixes/postfixes
-                // We also don't need to care for long/short forms thanks to Cecil/MonoMod
+				// We don't replace `ret`s yet because we might not need to
+				// We do that only if we add prefixes/postfixes
+				// We also don't need to care for long/short forms thanks to Cecil/MonoMod
 
-                // Temporary fix: CecilILGenerator doesn't properly handle ldarg
-                switch (ins.opcode.OperandType)
-                {
-                    case SRE.OperandType.InlineNone:
-                        il.Emit(ins.opcode);
-                        break;
-                    case SRE.OperandType.InlineSig:
-                        throw new NotSupportedException(
-                            "Emitting opcodes with CallSites is currently not fully implemented");
-                    default:
-                        if (ins.operand == null)
-                            throw new ArgumentNullException(nameof(ins.operand), $"Invalid argument for {ins}");
+				// Temporary fix: CecilILGenerator doesn't properly handle ldarg
+				switch (ins.opcode.OperandType)
+				{
+					case SRE.OperandType.InlineNone:
+						il.Emit(ins.opcode);
+						break;
+					case SRE.OperandType.InlineSig:
+						throw new NotSupportedException(
+							"Emitting opcodes with CallSites is currently not fully implemented");
+					default:
+						if (ins.operand == null)
+							throw new ArgumentNullException(nameof(ins.operand), $"Invalid argument for {ins}");
 
-                        il.Emit(ins.opcode, ins.operand);
-                        break;
-                }
+						il.Emit(ins.opcode, ins.operand);
+						break;
+				}
 
-                ins.blocks.ForEach(b => il.MarkBlockAfter(b));
-            }
+				ins.blocks.ForEach(b => il.MarkBlockAfter(b));
+			}
 
-            // Note: We lose all unassigned labels here along with any way to log them
-            // On the contrary, we gain better logging anyway down the line by using Cecil
+			// Note: We lose all unassigned labels here along with any way to log them
+			// On the contrary, we gain better logging anyway down the line by using Cecil
 
-            // Step 4: Run the code through raw IL manipulators (if any)
-            // TODO: IL Manipulators
-        }
-    }
+			// Step 4: Run the code through raw IL manipulators (if any)
+			// TODO: IL Manipulators
+		}
+	}
 }

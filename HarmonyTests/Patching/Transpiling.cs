@@ -9,99 +9,99 @@ using System.Reflection.Emit;
 
 namespace HarmonyLibTests.Patching
 {
-    [TestFixture]
-    public class Transpiling
-    {
-        private static CodeInstruction[] savedInstructions = null;
+	[TestFixture]
+	public class Transpiling
+	{
+		private static CodeInstruction[] savedInstructions = null;
 
 #if DEBUG
 		static OpCode insertLoc = OpCodes.Stloc_3;
 		static readonly int codeLength = 75;
 #else
-        private static readonly OpCode insertLoc = OpCodes.Stloc_1;
-        private static readonly int codeLength = 61;
+		private static readonly OpCode insertLoc = OpCodes.Stloc_1;
+		private static readonly int codeLength = 61;
 #endif
 
-        [Test]
-        public void TestTranspilerException1()
-        {
-            var test = new Class3();
+		[Test]
+		public void TestTranspilerException1()
+		{
+			var test = new Class3();
 
-            test.TestMethod("start");
-            Assert.AreEqual(test.GetLog, "start,test,ex:DivideByZeroException,finally,end");
+			test.TestMethod("start");
+			Assert.AreEqual(test.GetLog, "start,test,ex:DivideByZeroException,finally,end");
 
-            var original = AccessTools.Method(typeof(Class3), nameof(Class3.TestMethod));
-            Assert.IsNotNull(original);
+			var original = AccessTools.Method(typeof(Class3), nameof(Class3.TestMethod));
+			Assert.IsNotNull(original);
 
-            var transpiler = AccessTools.Method(typeof(Transpiling), nameof(TestTranspiler));
-            Assert.IsNotNull(transpiler);
+			var transpiler = AccessTools.Method(typeof(Transpiling), nameof(TestTranspiler));
+			Assert.IsNotNull(transpiler);
 
-            var instance = new Harmony("test-exception1");
-            instance.Patch(original, null, null, new HarmonyMethod(transpiler));
-            Assert.IsNotNull(savedInstructions);
-            Assert.AreEqual(savedInstructions.Length, codeLength);
+			var instance = new Harmony("test-exception1");
+			instance.Patch(original, null, null, new HarmonyMethod(transpiler));
+			Assert.IsNotNull(savedInstructions);
+			Assert.AreEqual(savedInstructions.Length, codeLength);
 
-            test.TestMethod("restart");
-            Assert.AreEqual(test.GetLog, "restart,test,patch,ex:DivideByZeroException,finally,end");
-        }
+			test.TestMethod("restart");
+			Assert.AreEqual(test.GetLog, "restart,test,patch,ex:DivideByZeroException,finally,end");
+		}
 
-        public static IEnumerable<CodeInstruction> TestTranspiler(IEnumerable<CodeInstruction> instructions)
-        {
-            savedInstructions = new CodeInstruction[instructions.Count()];
-            instructions.ToList().CopyTo(savedInstructions);
+		public static IEnumerable<CodeInstruction> TestTranspiler(IEnumerable<CodeInstruction> instructions)
+		{
+			savedInstructions = new CodeInstruction[instructions.Count()];
+			instructions.ToList().CopyTo(savedInstructions);
 
-            foreach (var instruction in instructions)
-            {
-                if (instruction.opcode == insertLoc)
-                {
-                    var blocks = instruction.blocks;
-                    instruction.blocks = new List<ExceptionBlock>();
+			foreach (var instruction in instructions)
+			{
+				if (instruction.opcode == insertLoc)
+				{
+					var blocks = instruction.blocks;
+					instruction.blocks = new List<ExceptionBlock>();
 
-                    var log = AccessTools.DeclaredField(typeof(Class3), "log");
-                    var tst = typeof(string);
-                    var concat = AccessTools.Method(typeof(string), nameof(string.Concat), new Type[] {tst, tst});
-                    yield return new CodeInstruction(OpCodes.Ldarg_0) {blocks = blocks};
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Ldfld, log);
-                    yield return new CodeInstruction(OpCodes.Ldstr, ",patch");
-                    yield return new CodeInstruction(OpCodes.Call, concat);
-                    yield return new CodeInstruction(OpCodes.Stfld, log);
-                }
+					var log = AccessTools.DeclaredField(typeof(Class3), "log");
+					var tst = typeof(string);
+					var concat = AccessTools.Method(typeof(string), nameof(string.Concat), new Type[] { tst, tst });
+					yield return new CodeInstruction(OpCodes.Ldarg_0) { blocks = blocks };
+					yield return new CodeInstruction(OpCodes.Ldarg_0);
+					yield return new CodeInstruction(OpCodes.Ldfld, log);
+					yield return new CodeInstruction(OpCodes.Ldstr, ",patch");
+					yield return new CodeInstruction(OpCodes.Call, concat);
+					yield return new CodeInstruction(OpCodes.Stfld, log);
+				}
 
-                yield return instruction;
-            }
-        }
+				yield return instruction;
+			}
+		}
 
-        [Test]
-        public void EmitDelegateTest()
-        {
-            var instruction = Transpilers.EmitDelegate<Action>(TranspliersClasses.TestStaticMethod);
+		[Test]
+		public void EmitDelegateTest()
+		{
+			var instruction = Transpilers.EmitDelegate<Action>(TranspliersClasses.TestStaticMethod);
 
-            Assert.AreEqual(OpCodes.Call, instruction.opcode);
-            Assert.IsTrue(instruction.operand is MethodInfo);
+			Assert.AreEqual(OpCodes.Call, instruction.opcode);
+			Assert.IsTrue(instruction.operand is MethodInfo);
 
-            instruction = Transpilers.EmitDelegate<Action>(() => TranspliersClasses.TestStaticField = 5);
+			instruction = Transpilers.EmitDelegate<Action>(() => TranspliersClasses.TestStaticField = 5);
 
-            Assert.AreEqual(OpCodes.Call, instruction.opcode);
-            Assert.IsTrue(instruction.operand is MethodInfo);
+			Assert.AreEqual(OpCodes.Call, instruction.opcode);
+			Assert.IsTrue(instruction.operand is MethodInfo);
 
-            CompileInstruction(instruction)();
+			CompileInstruction(instruction)();
 
-            Assert.AreEqual(5, TranspliersClasses.TestStaticField);
+			Assert.AreEqual(5, TranspliersClasses.TestStaticField);
 
-            int dummy = 0;
+			int dummy = 0;
 
-            instruction = Transpilers.EmitDelegate<Action>(() => dummy = 15);
+			instruction = Transpilers.EmitDelegate<Action>(() => dummy = 15);
 
-            Assert.AreEqual(OpCodes.Call, instruction.opcode);
-            Assert.IsTrue(instruction.operand is MethodInfo);
+			Assert.AreEqual(OpCodes.Call, instruction.opcode);
+			Assert.IsTrue(instruction.operand is MethodInfo);
 
-            CompileInstruction(instruction)();
+			CompileInstruction(instruction)();
 
-            Assert.AreEqual(15, dummy);
-        }
+			Assert.AreEqual(15, dummy);
+		}
 
-        private static Action CompileInstruction(CodeInstruction instruction) =>
-            (Action)((DynamicMethod)instruction.operand).CreateDelegate(typeof(Action));
-    }
+		private static Action CompileInstruction(CodeInstruction instruction) =>
+			(Action)((DynamicMethod)instruction.operand).CreateDelegate(typeof(Action));
+	}
 }
